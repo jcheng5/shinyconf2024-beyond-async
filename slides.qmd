@@ -8,6 +8,9 @@ format:
             - simple
             - custom.scss
         incremental: true
+        footer: "See these slides at https://rpubs.com/jcheng/beyond-async"
+        embed-resources: true
+        slide-number: true
 editor:
     render-on-save: true
 ---
@@ -18,12 +21,20 @@ Ideally, all the code you put into your Shiny app should be fast and responsive.
 
 If something is slow, first try making it fast.
 
+. . .
+
+From my talk from rstudio::conf 2019, ["Shiny in Production: Principles, Practices, and Tools"](https://www.youtube.com/watch?v=Wy3TY0gOmJw).
+
 * Don't guess: measure with a profiler.
 * Compute before the app even launches, if you can.
 * Use fast file formats: instead of CSV, try feather or parquet.
 * Use caching if appropriate (`renderCachedPlot`, `bindCache`).
 
-TODO: link to Shiny in Production talk
+<style>
+h2 {
+  font-size: 1.4em !important;
+}
+</style>
 
 ##
 
@@ -37,19 +48,16 @@ But sometimes, things are just going to be slow...
 
 (Credit: This demo builds on examples by Veerle van Leemput)
 
+## Long-running operations are a problem!
+
+* They block other users from connecting or interacting with the app. (inter-session concurrency)
+* They block the user from doing other things in the same app while they're waiting. (_intra_-session concurrency)
+
 ## Introducing ExtendedTask
 
-A new feature for both Shiny for R (1.8.1) and Python (0.7.0)
-
-## Introducing ExtendedTask
-
-Allows you to run long-running tasks for a user...
-
-* Without slowing down other users  
-  (inter-session concurrency)
-* Without blocking the user from doing other things in the app  
-  (_intra_-session concurrency)
-* Without a crazy steep learning curve for you, the app author
+* A new feature for both Shiny for R (1.8.1) and Python (0.7.0)
+* Allows you to run long-running tasks for a user while preserving both inter- and intra-session concurrency.
+* No crazy steep learning curve for app authors---unlike previous approaches (but we'll get to that).
 
 # Example 2: Slow API
 This time with ExtendedTask
@@ -142,15 +150,35 @@ For Shiny for Python:
 
 [https://shiny.posit.co/py/docs/nonblocking.html](https://shiny.posit.co/py/docs/nonblocking.html)
 
-# In depth
+## How did we get here?
 
-## Reactivity review
+. . .
+
+In 2017-2018, we introduced async programming to R, and then to Shiny.
+
+. . .
+
+A very technically challenging and conceptually elegant feature.
+
+* Use {future} (by Hernik Bengtsson) to perform long-running operations in a separate R process that runs in the background.
+* Use {promises} to handle the results of these operations, back in the original R process, in a principled way.
+* Deeply integrate support for promises into Shiny's reactive graph.
+
+## ExtendedTask vs. Shiny Async
+
+Shiny Async, while necessary, was never a truly satisfying solution.
+
+* _Incredibly_ steep learning curve.
+* Async operations "infect" everything downstream of them; any code that calls an async function must become an async function. See ["What color is your function?"](https://journal.stuffwithstuff.com/2015/02/01/what-color-is-your-function/) by Bob Nystrom.
+* Didn't solve the problem of intra-session concurrency. [People noticed.](https://github.com/rstudio/promises/issues/23)
+
+<!-- ## Reactivity review
 
 - Reactive programming is Shiny's core idea
     - Changing **inputs**...
     - ...affect intermediate **computations**...
     - ...affect **outputs**.
-- Shiny arranges these into a **reactive graph**.
+- Shiny arranges these into a **reactive graph**. -->
 
 ##
 ![](images/cover.png){fig-align="center" style="box-shadow: 0px 25px 50px rgba(0, 0, 0, 0.3);" alt="Cover art of the O'Reilly book 'Mastering Shiny' by Hadley Wickham"}
@@ -278,6 +306,65 @@ How can we separate the task from the tick?
 
 ![](images/reactivity-tracking-extended-task/ex10.png)
 
+## {future} alternatives
+
+[**{future}**](https://future.futureverse.org/) is a great package, but it's not the only way to run R code in the background.
+
+Pros:
+
+::: {.nonincremental}
+* Very convenient, "automagic" API
+* Popular and well supported for many years
+:::
+
+Cons:
+
+::: {.nonincremental}
+* High runtime overhead
+* An intimidating number of options and extensions
+* Complex implementation
+:::
+
+## {future} alternatives
+
+[**{mirai}**](https://shikokuchuo.net/mirai/) is a new package by Charlie Guo that, like {future}, can run code in a background R process.
+
+Pros:
+
+::: {.nonincremental}
+* Very low overhead compared to {future}
+* API is easy to understand, no "magical" features
+:::
+
+Cons:
+
+::: {.nonincremental}
+* Still relatively new, not as battle-tested as {future}
+* Lack of "automagic" features makes it less convenient to launch tasks
+:::
+
+## {future} alternatives
+
+[**{crew}**](https://wlandau.github.io/crew/) by Will Landau builds on {mirai} to provide a convenient way to launch and manage multiple (potentially very many) tasks.
+
+{crew} works with ExtendedTask and has examples in its docs. I'm not yet familiar enough with {crew} to give it a full evaluation.
+
+## {future} alternatives
+
+The author of {future} informs me that a {future.mirai} package is currently in beta, and combines the convenient API of {future} with the low overhead of {mirai}.
+
+## Summary
+
+::: {.nonincremental}
+* Avoid long-running tasks in your Shiny app if you can.
+* If you can't, use ExtendedTask to run them in the background.
+* [ExtendedTask docs for R](https://shiny.posit.co/r/articles/improve/nonblocking/)
+* [ExtendedTask docs for Python](https://shiny.posit.co/py/docs/nonblocking.html)
+:::
+
+Thank you!
+
+<!--
 ## Using ExtendedTask (in R)
 
 1. **Extract** slow code into a (non-reactive) function.
@@ -394,12 +481,6 @@ f <- future({
 
 ## Fine print: It doesn't have to be {future}
 
-<style>
-h2 {
-  font-size: 1.4em !important;
-}
-</style>
-
 ExtendedTask just needs your code to run quickly and return an object
 
 {mirai} is a new package that, like {future}, can run code in a background R process.
@@ -468,5 +549,4 @@ server <- function(input, output, session) {
   })
 }
 ```
-
-## Haven't we seen this before?
+-->
