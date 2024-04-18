@@ -16,6 +16,8 @@ editor:
     render-on-save: true
 ---
 
+# Let's talk about slow code
+
 ##
 
 Ideally, all the code you put into your Shiny app should be fast and responsive.
@@ -32,6 +34,9 @@ From my talk from rstudio::conf 2019, ["Shiny in Production: Principles, Practic
 * Use caching if appropriate (`renderCachedPlot`, `bindCache`).
 
 <style>
+h1 {
+  font-size: 1.6em !important;
+}
 h2 {
   font-size: 1.4em !important;
 }
@@ -151,6 +156,8 @@ For Shiny for Python:
 
 [https://shiny.posit.co/py/docs/nonblocking.html](https://shiny.posit.co/py/docs/nonblocking.html)
 
+# How did we get here?
+
 ## How did we get here?
 
 . . .
@@ -239,7 +246,7 @@ Each trip through the loop is a "reactive tick".
 ##
 ![](images/reactivity-tracking/03a.png){height="300px" fig-align="center"}
 
-Long-running tasks bring the reactive graph to a halt
+**Long-running tasks bring the reactive graph to a halt**
 
 ```{.r code-line-numbers="3"}
 while (TRUE) {
@@ -252,7 +259,7 @@ while (TRUE) {
 ##
 ![](images/reactivity-tracking/03a.png){height="300px" fig-align="center"}
 
-Long-running tasks bring the reactive graph to a halt
+**Long-running tasks bring the reactive graph to a halt**
 
 * Inputs and outputs are stalled
 * Other users are blocked
@@ -260,6 +267,30 @@ Long-running tasks bring the reactive graph to a halt
 . . .
 
 How can we separate the task from the tick?
+
+##
+
+With Shiny Async, you can run multiple graphs concurrently...
+
+:::: {.columns}
+
+::: {.column width="33%"}
+![](images/reactivity-tracking/06.png)
+:::
+
+::: {.column width="33%"}
+![](images/reactivity-tracking/08.png)
+:::
+
+::: {.column width="33%"}
+![](images/reactivity-tracking/03.png)
+:::
+
+::::
+
+. . .
+
+But you can't run multiple tasks concurrently within a single graph because the shape of the graph is unchanged.
 
 ##
 
