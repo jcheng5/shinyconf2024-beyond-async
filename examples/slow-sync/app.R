@@ -79,7 +79,7 @@ ui <- page_sidebar(fillable = FALSE,
       "Relative to first price" = "relative"
     )),
     hr(),
-    numericInput("delay_secs", "Seconds to take (for debugging)", 2),
+    numericInput("delay_secs", "Artificial delay, in seconds", 2),
   ),
   layout_columns(id = "results", col_widths = 2, fillable = FALSE)
 )

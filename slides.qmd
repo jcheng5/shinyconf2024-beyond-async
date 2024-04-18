@@ -1,5 +1,6 @@
 ---
 title: Beyond Async
+subtitle: ShinyConf 2024
 author: Joe Cheng
 date: April 18, 2024
 format:
