@@ -376,7 +376,7 @@ Cons:
 
 ## {future} alternatives
 
-[**{mirai}**](https://shikokuchuo.net/mirai/) is a new package by Charlie Guo that, like future, can run code in a background R process.
+[**{mirai}**](https://shikokuchuo.net/mirai/) is a new package by Charlie Gao that, like future, can run code in a background R process.
 
 Pros:
 
