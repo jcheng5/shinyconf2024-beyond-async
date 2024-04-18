@@ -1,0 +1,472 @@
+---
+title: Beyond Async
+author: Joe Cheng
+date: April 18, 2024
+format:
+    revealjs:
+        theme:
+            - simple
+            - custom.scss
+        incremental: true
+editor:
+    render-on-save: true
+---
+
+##
+
+Ideally, all the code you put into your Shiny app should be fast and responsive.
+
+If something is slow, first try making it fast.
+
+* Don't guess: measure with a profiler.
+* Compute before the app even launches, if you can.
+* Use fast file formats: instead of CSV, try feather or parquet.
+* Use caching if appropriate (`renderCachedPlot`, `bindCache`).
+
+TODO: link to Shiny in Production talk
+
+##
+
+But sometimes, things are just going to be slow...
+
+* Calling a slow API
+* Training a large model
+* Compiling a large, dynamic report
+
+# Example 1: Slow API
+
+(Credit: This demo builds on examples by Veerle van Leemput)
+
+## Introducing ExtendedTask
+
+A new feature for both Shiny for R (1.8.1) and Python (0.7.0)
+
+## Introducing ExtendedTask
+
+Allows you to run long-running tasks for a user...
+
+* Without slowing down other users  
+  (inter-session concurrency)
+* Without blocking the user from doing other things in the app  
+  (_intra_-session concurrency)
+* Without a crazy steep learning curve for you, the app author
+
+# Example 2: Slow API
+This time with ExtendedTask
+
+## Without ExtendedTask (R)
+
+```{.r}
+server <- function(input, output, session) {
+  msg <- eventReactive(input$go, {
+    # Simulate a long-running task
+    Sys.sleep(5)
+    paste0("Hello, ", input$name, "!")
+  })
+
+  output$message <- renderText({
+    msg()
+  })
+}
+```
+
+## With ExtendedTask (R)
+
+```{.r code-line-numbers="2,3,12,13,17,18"}
+server <- function(input, output, session) {
+  # Define the task
+  msg_task <- ExtendedTask$new(function(name) {
+    future({
+      # Simulate a long-running task
+      Sys.sleep(5)
+      paste0("Hello, ", name, "!")
+    })
+  })
+
+  observeEvent(input$go, {
+    # Start the task
+    msg_task$invoke(input$name)
+  })
+
+  output$message <- renderText({
+    # Use the task's result
+    msg_task$result()
+  })
+}
+```
+
+## Without ExtendedTask (Python)
+
+```python
+@reactive.calc
+@reactive.event(input.go)
+def msg():
+    # Simulate a long-running task
+    time.sleep(5)
+    return f"Hello, {input.name()}"
+
+@render.text
+def message():
+    return msg()
+```
+
+## With ExtendedTask (Python)
+
+```{.python code-line-numbers="1,2,3,11,12,16,17"}
+# Define the task
+@reactive.extended_task
+async def msg_task(name):
+    # Simulate a long-running task
+    await asyncio.sleep(5)
+    return f"Hello, {name}!"
+
+@reactive.effect
+@reactive.event(input.go)
+def _():
+    # Start the task
+    msg_task.invoke(input.name())
+
+@render.text
+def message():
+    # Use the task's result
+    return msg_task.result()
+```
+
+## Getting started
+
+For Shiny for R:
+
+[https://shiny.posit.co/r/articles/improve/nonblocking/](https://shiny.posit.co/r/articles/improve/nonblocking/)
+
+For Shiny for Python:
+
+[https://shiny.posit.co/py/docs/nonblocking.html](https://shiny.posit.co/py/docs/nonblocking.html)
+
+# In depth
+
+## Reactivity review
+
+- Reactive programming is Shiny's core idea
+    - Changing **inputs**...
+    - ...affect intermediate **computations**...
+    - ...affect **outputs**.
+- Shiny arranges these into a **reactive graph**.
+
+##
+![](images/cover.png){fig-align="center" style="box-shadow: 0px 25px 50px rgba(0, 0, 0, 0.3);" alt="Cover art of the O'Reilly book 'Mastering Shiny' by Hadley Wickham"}
+
+##
+![](images/reactivity-tracking/01.png)
+
+##
+![](images/reactivity-tracking/02.png)
+
+##
+![](images/reactivity-tracking/03.png)
+
+##
+![](images/reactivity-tracking/04.png)
+
+##
+![](images/reactivity-tracking/05.png)
+
+##
+![](images/reactivity-tracking/06.png)
+
+##
+![](images/reactivity-tracking/07.png)
+
+##
+![](images/reactivity-tracking/08.png)
+
+##
+
+![](images/reactivity-tracking/08.png)
+
+The graph is at equilibrium now.
+
+Everything up til now has been a single "tick" (as in "tick of the clock").
+
+##
+
+Somewhere in the depths of Shiny is a loop that looks like this:
+
+```{.r}
+while (TRUE) {
+  changes <- wait_for_input_changes()
+  changed_outputs <- recompute_all_affected_things(changes)
+  send_outputs(changed_outputs)
+}
+```
+
+Each trip through the loop is a "reactive tick".
+
+* **Only at the beginning** of a reactive tick do we **check for input changes.**
+
+* **Only at the end** of a reactive tick do we **send the outputs to the client.**
+
+##
+![](images/reactivity-tracking/03a.png)
+
+Long-running tasks bring the reactive graph to a halt
+
+```{.r code-line-numbers="3"}
+while (TRUE) {
+  changes <- wait_for_input_changes()
+  changed_outputs <- recompute_all_affected_things(changes)
+  send_outputs(changed_outputs)
+}
+```
+
+##
+
+This is why:
+
+* All outputs are held up
+* New inputs cannot be processed
+* Even other users are blocked
+
+. . .
+
+How can we separate the task from the tick?
+
+##
+
+![](images/reactivity-tracking/complete.png)
+
+##
+
+![](images/reactivity-tracking-extended-task/complete-extended.png)
+
+##
+
+![](images/reactivity-tracking-extended-task/ex01.png)
+
+##
+
+![](images/reactivity-tracking-extended-task/ex02.png)
+
+##
+
+![](images/reactivity-tracking-extended-task/ex03.png)
+
+##
+
+![](images/reactivity-tracking-extended-task/ex04.png)
+
+##
+
+![](images/reactivity-tracking-extended-task/ex05.png)
+
+##
+
+![](images/reactivity-tracking-extended-task/ex06.png)
+
+##
+
+![](images/reactivity-tracking-extended-task/ex07.png)
+
+##
+
+![](images/reactivity-tracking-extended-task/ex08.png)
+
+##
+
+![](images/reactivity-tracking-extended-task/ex09.png)
+
+##
+
+![](images/reactivity-tracking-extended-task/ex10.png)
+
+## Using ExtendedTask (in R)
+
+1. **Extract** slow code into a (non-reactive) function.
+2. **Wrap** the function body with `{future}` or `{mirai}`.
+3. **Create** an `ExtendedTask` R6 object.
+4. **Invoke** the task using `task$invoke()`.
+5. **Retrieve** the result using `task$result()`.
+
+## Using ExtendedTask (in Python)
+
+1. **Extract** slow code into a (non-reactive) `async` function.
+2. **Wrap** the logic with an asyncio executor.
+3. **Decorate** the function with `@reactive.extended_task`.
+4. **Invoke** the task using `task.invoke()`.
+5. **Retrieve** the result using `task.result()`.
+
+## Example (before)
+
+```r
+server <- function(input, output, session) {
+  greeting <- eventReactive(input$go, {
+    Sys.sleep(5) # Simulate a slow computation
+    paste0("Hello, ", input$name, "!")
+  })
+
+  output$message <- renderText({
+    greeting()
+  })
+}
+```
+
+## Step 1: Extract into function
+
+```r
+server <- function(input, output, session) {
+  greeting <- function() {
+    Sys.sleep(5) # Simulate a slow computation
+    paste0("Hello, ", input$name, "!")
+  }
+
+  output$message <- renderText({
+    greeting()
+  })
+}
+```
+
+## Step 1: Extract into function
+
+```r
+server <- function(input, output, session) {
+  greeting <- function(name) {
+    Sys.sleep(5) # Simulate a slow computation
+    paste0("Hello, ", name, "!")
+  }
+
+  output$message <- renderText({
+    greeting()
+  })
+}
+```
+
+Also, make it non-reactive by replacing reactive reads with function params.
+
+## ⚠️ ExtendedTasks cannot access reactives! ⚠️
+
+* Remember, ExtendedTask executes outside of the reactive graph
+  * You could end up with race conditions if you access reactive values that might be changing underneath you
+* Instead, add parameters for the values you need, and pass them in when you invoke the task
+* If you forget this rule, Shiny will remind you by throwing an error!
+
+## Step 2: Wrap with {future}
+
+```r
+server <- function(input, output, session) {
+  greeting <- function(name) {
+    future({
+      Sys.sleep(5) # Simulate a slow computation
+      paste0("Hello, ", name, "!")
+    })
+  }
+
+  output$message <- renderText({
+    greeting()
+  })
+}
+```
+
+## Step 2: Wrap with {future}
+
+R is single threaded, so we need help from the {future} package to actually make our task execute concurrently with Shiny's reactive graph.
+
+```r
+# Set up and configure future at the top of app.R
+library(future)
+plan(multisession) # Tells future to use multiple R processes
+```
+
+. . .
+
+Once set up, you can do:
+
+```r
+# 0.0 seconds
+f <- future({
+  Sys.sleep(5)
+  paste0("Hello, ", name, "!")
+})
+# 0.0 seconds
+```
+
+. . .
+
+`future()` starts executing the logic in the background and returns immediately.
+
+## Fine print: It doesn't have to be {future}
+
+<style>
+h2 {
+  font-size: 1.4em !important;
+}
+</style>
+
+ExtendedTask just needs your code to run quickly and return an object
+
+{mirai} is a new package that, like {future}, can run code in a background R process.
+
+**Pros**
+
+::: {.nonincremental}
+* Very low overhead compared to {future}
+:::
+
+## Step 3: Create an ExtendedTask
+
+```r
+server <- function(input, output, session) {
+  greeting_task <- ExtendedTask$new(function(name) {
+    future({
+      Sys.sleep(5) # Simulate a slow computation
+      paste0("Hello, ", name, "!")
+    })
+  })
+
+  output$message <- renderText({
+    greeting_task()
+  })
+}
+```
+
+## Step 4: Invoke the task
+
+```r
+server <- function(input, output, session) {
+  greeting_task <- ExtendedTask$new(function(name) {
+    future({
+      Sys.sleep(5) # Simulate a slow computation
+      paste0("Hello, ", name, "!")
+    })
+  })
+
+  observeEvent(input$go, {
+    greeting_task$invoke(input$name)
+  })
+
+  output$message <- renderText({
+    greeting_task()
+  })
+}
+```
+
+## Step 5: Retrieve the result
+
+```r
+server <- function(input, output, session) {
+  greeting_task <- ExtendedTask$new(function(name) {
+    future({
+      Sys.sleep(5) # Simulate a slow computation
+      paste0("Hello, ", name, "!")
+    })
+  })
+  
+  observeEvent(input$go, {
+    greeting_task$invoke(input$name)
+  })
+
+  output$message <- renderText({
+    greeting_task$result()
+  })
+}
+```
+
+## Haven't we seen this before?
