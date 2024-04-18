@@ -46,7 +46,7 @@ But sometimes, things are just going to be slow...
 
 # Example 1: Slow API
 
-(Credit: This demo builds on examples by Veerle van Leemput)
+Credit: This demo builds on examples by Veerle van Leemput at [@hypebright/async_shiny](https://github.com/hypebright/async_shiny)
 
 ## Long-running operations are a problem!
 
