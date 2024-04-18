@@ -81,7 +81,7 @@ server <- function(input, output, session) {
 
 ## With ExtendedTask (R)
 
-```{.r code-line-numbers="2,3,12,13,17,18"}
+```{.r code-line-numbers="2,3,4,8,9,12,13,17,18"}
 server <- function(input, output, session) {
   # Define the task
   msg_task <- ExtendedTask$new(function(name) {
@@ -263,11 +263,13 @@ How can we separate the task from the tick?
 
 ##
 
-![](images/reactivity-tracking/complete.png)
+![](images/reactivity-tracking/01.png)
 
+<!-- 
 ##
 
 ![](images/reactivity-tracking-extended-task/complete-extended.png)
+-->
 
 ##
 
@@ -309,9 +311,22 @@ How can we separate the task from the tick?
 
 ![](images/reactivity-tracking-extended-task/ex10.png)
 
+## ExtendedTask (vs. Shiny Async)
+
+* ET supports both inter- and [intra-session](https://github.com/rstudio/promises/issues/23) concurrency
+* ET doesn't require you to learn a strange syntax
+* ET doesn't spill its async-ness all over your codebase
+* ET still relies on {future} to put the task in the background
+
+## To do
+
+* Cancellation is only supported in Python for now
+* Progress reporting is not yet supported in either language
+* Both of these will require cooperation from {future} or alternatives
+
 ## {future} alternatives
 
-[**{future}**](https://future.futureverse.org/) is a great package, but it's not the only way to run R code in the background.
+[**future**](https://future.futureverse.org/) is a great package, but it's not the only way to run R code in the background.
 
 Pros:
 
@@ -330,31 +345,31 @@ Cons:
 
 ## {future} alternatives
 
-[**{mirai}**](https://shikokuchuo.net/mirai/) is a new package by Charlie Guo that, like {future}, can run code in a background R process.
+[**{mirai}**](https://shikokuchuo.net/mirai/) is a new package by Charlie Guo that, like future, can run code in a background R process.
 
 Pros:
 
 ::: {.nonincremental}
-* Very low overhead compared to {future}
+* Very low overhead compared to future
 * API is easy to understand, no "magical" features
 :::
 
 Cons:
 
 ::: {.nonincremental}
-* Still relatively new, not as battle-tested as {future}
+* Still relatively new, not as battle-tested as future
 * Lack of "automagic" features makes it less convenient to launch tasks
 :::
 
 ## {future} alternatives
 
-[**{crew}**](https://wlandau.github.io/crew/) by Will Landau builds on {mirai} to provide a convenient way to launch and manage multiple (potentially very many) tasks.
+[**{crew}**](https://wlandau.github.io/crew/) by Will Landau builds on mirai to provide a convenient way to launch and manage multiple (potentially very many) tasks.
 
-{crew} works with ExtendedTask and has examples in its docs. I'm not yet familiar enough with {crew} to give it a full evaluation.
+crew works with ExtendedTask and has examples in its docs. I'm not yet familiar enough with crew to give it a full evaluation.
 
 ## {future} alternatives
 
-The author of {future} informs me that a {future.mirai} package is currently in beta, and combines the convenient API of {future} with the low overhead of {mirai}.
+A [**{future.mirai}**](https://future.mirai.futureverse.org/) package is currently in beta, and should combine the convenient API of future with the low overhead of mirai.
 
 ## Summary
 
